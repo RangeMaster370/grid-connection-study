@@ -1,0 +1,123 @@
+{
+  "provenance": "Study model on the public CIGRE MV benchmark network with assumed plant data and synthetic daily profiles; not a utility grid-connection approval.",
+  "plant": {
+    "pcc_bus_name": "Bus 13",
+    "pv_peak_mw": 4.0,
+    "bess_power_mw": 2.0,
+    "bess_energy_mwh": 4.0,
+    "q_ratio_max": 0.329,
+    "export_limit_mw": 2.5
+  },
+  "limits": {
+    "delta_u_pct": 2.0,
+    "v_band_pu": [
+      0.9,
+      1.1
+    ],
+    "loading_pct": 100.0,
+    "qu_vref_pu": 1.02
+  },
+  "worst_case_light_load_full_pv": {
+    "unity": {
+      "delta_u_pct": 2.3834128434828683,
+      "pcc_vm_pu": 1.0478894074474703,
+      "q_mvar": 0.0,
+      "passes": false
+    },
+    "pf095": {
+      "delta_u_pct": 1.1974699153505242,
+      "pcc_vm_pu": 1.0360361666064963,
+      "q_mvar": -1.3147364207154528,
+      "passes": true
+    },
+    "qu": {
+      "delta_u_pct": 1.976882277806724,
+      "pcc_vm_pu": 1.0438262076527987,
+      "q_mvar": -0.45487608966928256,
+      "passes": true
+    }
+  },
+  "scenario_matrix": {
+    "cases": 18,
+    "passing": 15,
+    "failing_cases": [
+      {
+        "load": "light",
+        "pv_output_frac": 1.0,
+        "q_mode": "unity",
+        "delta_u_pct": 2.383
+      },
+      {
+        "load": "peak",
+        "pv_output_frac": 1.0,
+        "q_mode": "unity",
+        "delta_u_pct": 2.619
+      },
+      {
+        "load": "peak",
+        "pv_output_frac": 1.0,
+        "q_mode": "qu",
+        "delta_u_pct": 2.619
+      }
+    ]
+  },
+  "hosting_capacity": {
+    "pf095": {
+      "hosting_capacity_mw": 6.5,
+      "binding_limit": [
+        "thermal"
+      ]
+    },
+    "qu": {
+      "hosting_capacity_mw": 4.0,
+      "binding_limit": [
+        "voltage change"
+      ]
+    },
+    "unity": {
+      "hosting_capacity_mw": 3.0,
+      "binding_limit": [
+        "voltage change"
+      ]
+    }
+  },
+  "short_circuit": {
+    "ikss_ka": 2.8092174211891634,
+    "ip_ka": 4.567396776743427,
+    "sk_mva": 97.31414606014498,
+    "plant_rating_mw": 4.0,
+    "scr": 24.328536515036244,
+    "scr_with_battery_rating": 16.219024343357496
+  },
+  "time_series": {
+    "without_battery": {
+      "with_battery": false,
+      "q_mode": "qu",
+      "pv_energy_available_mwh": 37.427154640696955,
+      "curtailed_energy_mwh": 7.9749853288764365,
+      "battery_charged_mwh": -0.0,
+      "battery_discharged_mwh": 0.0,
+      "peak_plant_export_mw": 2.5,
+      "max_pcc_vm_pu": 1.033795496289732,
+      "min_pcc_vm_pu": 1.0131007405591308,
+      "max_line_loading_pct": 65.0039007476503,
+      "soc_min_frac": 0.1,
+      "soc_max_frac": 0.1
+    },
+    "with_battery": {
+      "with_battery": true,
+      "q_mode": "qu",
+      "pv_energy_available_mwh": 37.427154640696955,
+      "curtailed_energy_mwh": 4.1802521366743814,
+      "battery_charged_mwh": 3.794733192202055,
+      "battery_discharged_mwh": 3.794733192202055,
+      "peak_plant_export_mw": 2.5,
+      "max_pcc_vm_pu": 1.033795496289732,
+      "min_pcc_vm_pu": 1.0181357161167346,
+      "max_line_loading_pct": 65.0039007476503,
+      "soc_min_frac": 0.0,
+      "soc_max_frac": 1.0
+    },
+    "curtailment_reduction_mwh": 3.794733192202055
+  }
+}

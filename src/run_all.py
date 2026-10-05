@@ -1,0 +1,157 @@
+"""Run every study and regenerate results/ (CSV, SVG, summary.json, manifest.json, REPORT.md)."""
+from __future__ import annotations
+
+import hashlib
+import json
+import platform
+import sys
+import warnings
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
+
+warnings.filterwarnings("ignore")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+import numpy as np  # noqa: E402
+import pandapower  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from gridstudy import plots  # noqa: E402
+from gridstudy.network import PlantConfig, build_network, mv_buses, scale_loads  # noqa: E402
+from gridstudy.studies import (DELTA_U_LIMIT_PCT, LIGHT_LOAD, QU_VREF, hosting_capacity,  # noqa: E402
+                               scenario_matrix, short_circuit, solve, time_series)
+
+OUT = ROOT / "results"
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main() -> dict:
+    OUT.mkdir(exist_ok=True)
+    cfg = PlantConfig()
+
+    # 1. scenario matrix
+    matrix = scenario_matrix(cfg)
+    matrix.to_csv(OUT / "scenario_matrix.csv", index=False, float_format="%.6g")
+
+    # voltage profile for the worst case (light load, full PV)
+    net, idx = build_network(cfg)
+    scale_loads(net, LIGHT_LOAD)
+    mv = mv_buses(net)
+    profiles = {}
+    solve(net, idx, cfg, 0.0, 0.0, "unity")
+    profiles["no plant"] = net.res_bus.vm_pu.loc[mv].copy()
+    for mode in ("unity", "pf095", "qu"):
+        solve(net, idx, cfg, cfg.pv_peak_mw, 0.0, mode)
+        profiles[mode] = net.res_bus.vm_pu.loc[mv].copy()
+    pd.DataFrame(profiles).rename_axis("bus").to_csv(OUT / "voltage_profile_light_full_pv.csv", float_format="%.6g")
+    plots.voltage_profile(profiles, cfg.pcc_bus_name, OUT / "voltage_profile.svg")
+
+    # 2. hosting capacity
+    hc_df, hc = hosting_capacity(cfg)
+    hc_df.to_csv(OUT / "hosting_capacity.csv", index=False, float_format="%.6g")
+    plots.hosting_capacity(hc_df, hc, OUT / "hosting_capacity.svg")
+
+    # 3. short circuit
+    scr = short_circuit(cfg)
+
+    # Q(U) operating points from the matrix
+    q_max = cfg.q_ratio_max * cfg.pv_peak_mw
+    pts = [(r.pcc_vm_pu, r.q_mvar / q_max, f"{r.load} load, PV {int(r.pv_output_frac * 100)} %")
+           for r in matrix[(matrix.q_mode == "qu") & (matrix.pv_output_frac > 0)].itertuples()]
+    plots.qu_characteristic(pts, OUT / "qu_characteristic.svg")
+
+    # 4. time series
+    ts_bat, s_bat = time_series(cfg, with_battery=True)
+    ts_no, s_no = time_series(cfg, with_battery=False)
+    ts_bat.to_csv(OUT / "timeseries_with_battery.csv", index=False, float_format="%.6g")
+    ts_no.to_csv(OUT / "timeseries_without_battery.csv", index=False, float_format="%.6g")
+    plots.daily(ts_bat, ts_no, cfg.export_limit_mw, OUT / "daily_battery.svg")
+
+    worst = matrix[(matrix.load == "light") & (matrix.pv_output_frac == 1.0)].set_index("q_mode")
+    summary = {
+        "provenance": "Study model on the public CIGRE MV benchmark network with assumed plant data and synthetic daily profiles; not a utility grid-connection approval.",
+        "plant": asdict(cfg),
+        "limits": {"delta_u_pct": DELTA_U_LIMIT_PCT, "v_band_pu": [0.90, 1.10], "loading_pct": 100.0,
+                   "qu_vref_pu": QU_VREF},
+        "worst_case_light_load_full_pv": {
+            m: {"delta_u_pct": float(worst.at[m, "delta_u_pct"]), "pcc_vm_pu": float(worst.at[m, "pcc_vm_pu"]),
+                "q_mvar": float(worst.at[m, "q_mvar"]), "passes": bool(worst.at[m, "passes"])}
+            for m in ("unity", "pf095", "qu")},
+        "scenario_matrix": {"cases": int(len(matrix)), "passing": int(matrix.passes.sum()),
+                            "failing_cases": matrix[~matrix.passes][["load", "pv_output_frac", "q_mode", "delta_u_pct"]]
+                            .round(3).to_dict("records")},
+        "hosting_capacity": hc,
+        "short_circuit": scr,
+        "time_series": {"without_battery": s_no, "with_battery": s_bat,
+                        "curtailment_reduction_mwh": s_no["curtailed_energy_mwh"] - s_bat["curtailed_energy_mwh"]},
+    }
+    (OUT / "summary.json").write_text(json.dumps(summary, indent=2))
+    write_report(summary)
+
+    manifest = {
+        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "python": platform.python_version(), "pandapower": pandapower.__version__,
+        "numpy": np.__version__, "pandas": pd.__version__,
+        "sources": {str(p.relative_to(ROOT)): sha(p) for p in sorted((ROOT / "src").rglob("*.py"))},
+        "results": {p.name: sha(p) for p in sorted(OUT.iterdir()) if p.name != "manifest.json"},
+    }
+    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    return summary
+
+
+def write_report(s: dict) -> None:
+    w = s["worst_case_light_load_full_pv"]
+    hc = s["hosting_capacity"]
+    sc = s["short_circuit"]
+    t = s["time_series"]
+    p = s["plant"]
+    lines = [
+        "# Results report (generated by `src/run_all.py`)",
+        "",
+        f"Plant: {p['pv_peak_mw']} MW PV + {p['bess_power_mw']} MW / {p['bess_energy_mwh']} MWh battery at "
+        f"{p['pcc_bus_name']} (20 kV) of the CIGRE MV benchmark. {s['provenance']}",
+        "",
+        "## Voltage change, light load (20 %) and full PV output",
+        "",
+        "| Reactive-power mode | Max. ΔU on 20 kV buses | PCC voltage | Q (Mvar) | ≤ 2 % ? |",
+        "|---|---|---|---|---|",
+    ]
+    names = {"unity": "cos φ = 1", "pf095": "cos φ = 0.95 under-excited", "qu": "Q(U) droop"}
+    for m, r in w.items():
+        lines.append(f"| {names[m]} | {r['delta_u_pct']:.2f} % | {r['pcc_vm_pu']:.3f} p.u. | {r['q_mvar']:.2f} | "
+                     f"{'yes' if r['delta_u_pct'] <= 2 else 'no'} |")
+    lines += ["", f"Scenario matrix: {s['scenario_matrix']['passing']} of {s['scenario_matrix']['cases']} cases pass all "
+              "screening limits. Failing cases:", ""]
+    for c in s["scenario_matrix"]["failing_cases"]:
+        lines.append(f"- {c['load']} load, PV {int(c['pv_output_frac'] * 100)} %, {names[c['q_mode']]}: "
+                     f"ΔU = {c['delta_u_pct']:.2f} %")
+    lines += ["", "## Hosting capacity (light load, battery idle)", ""]
+    for m, r in hc.items():
+        lines.append(f"- {names[m]}: **{r['hosting_capacity_mw']:.1f} MW**; next step limited by "
+                     f"{', '.join(r['binding_limit']) or 'none within sweep'}")
+    lines += ["", "## Short circuit at the PCC (IEC 60909, maximum, plant disconnected)", "",
+              f"- I″k = {sc['ikss_ka']:.2f} kA, ip = {sc['ip_ka']:.2f} kA, S″k = {sc['sk_mva']:.1f} MVA",
+              f"- Short-circuit ratio S″k / P_PV = **{sc['scr']:.1f}**; including battery rating "
+              f"{sc['scr_with_battery_rating']:.1f}",
+              "", "## 24 h battery study (export cap "
+              f"{p['export_limit_mw']} MW, Q(U) active)", "",
+              f"- Curtailed PV energy: {t['without_battery']['curtailed_energy_mwh']:.2f} MWh without battery, "
+              f"{t['with_battery']['curtailed_energy_mwh']:.2f} MWh with battery "
+              f"(−{t['curtailment_reduction_mwh']:.2f} MWh)",
+              f"- Battery charged {t['with_battery']['battery_charged_mwh']:.2f} MWh, discharged "
+              f"{t['with_battery']['battery_discharged_mwh']:.2f} MWh (90 % round trip, starting at 10 % state of charge); "
+              f"state of charge stayed within {t['with_battery']['soc_min_frac']:.0%}–{t['with_battery']['soc_max_frac']:.0%}",
+              f"- PCC voltage range {t['with_battery']['min_pcc_vm_pu']:.3f}–{t['with_battery']['max_pcc_vm_pu']:.3f} p.u.; "
+              f"max. line loading {t['with_battery']['max_line_loading_pct']:.1f} %",
+              ""]
+    (OUT / "REPORT.md").write_text("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()
+    print((OUT / "REPORT.md").read_text())

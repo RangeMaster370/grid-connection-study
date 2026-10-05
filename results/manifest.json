@@ -1,0 +1,27 @@
+{
+  "generated_utc": "2026-10-05T18:21:49+00:00",
+  "python": "3.13.16",
+  "pandapower": "3.5.5",
+  "numpy": "2.4.6",
+  "pandas": "2.3.3",
+  "sources": {
+    "src/gridstudy/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/gridstudy/network.py": "b8051ca1d12ac7010c5929aba137d385265176818502a3c8b2a707322340d5e9",
+    "src/gridstudy/plots.py": "8e87a72cf7a73a68a478cfae78e82e13ea20fa62fcb11560091989709c798b38",
+    "src/gridstudy/studies.py": "c4f19bf463d52d8f0132c285c8ff76d3545884c4a13c7db9f8c43e743b89b326",
+    "src/run_all.py": "09e8e55ad868cf6127b11676ec1e3aec41e25aef432739f1277ebd04dc6b2890"
+  },
+  "results": {
+    "REPORT.md": "dc85f86af98a8d8097b915ef1de153d58198f794789e3311392256d493567ee5",
+    "daily_battery.svg": "886b1abf37b262779da8da5f6ade26dcdca73e7145fcb033d51691771fe44b85",
+    "hosting_capacity.csv": "af1e0d49289754f22d01122e1188dd428a70dad302d9766ed08f79ba522e3703",
+    "hosting_capacity.svg": "7822b2dbf14d6364da3c100e53a0005c00955979ceb826ff2a1a58588d1b2d91",
+    "qu_characteristic.svg": "f2e1ea3c1e6e00f37bf3ae03e6031e287bbc32c604ba3696b01587eb1fe9a7f3",
+    "scenario_matrix.csv": "5f6fc4b4d1216f515456eb225d1843b85877279a6149ac9d70d309529b40608d",
+    "summary.json": "a7bdcd723028209eafc5da203f7547ef51e7835126dff7c32aa51ae2694831dc",
+    "timeseries_with_battery.csv": "34272d5c85a628f7c60b676dcf42f0aee7c1e0bdbefd5de8062b95eecada99c7",
+    "timeseries_without_battery.csv": "1457f47626c111d7cccca8034bbbd766a6c234cb9a52faed1fe3d0dda77a3d74",
+    "voltage_profile.svg": "cd2a3fcc2051a17f184c20071c843d427f7a43453c5dd78f35ff4bed1aae9098",
+    "voltage_profile_light_full_pv.csv": "628ff5d7adcaf8a87c9c3401dfe97a6fba26712cee4ff2ac849cbb835b9c2200"
+  }
+}
